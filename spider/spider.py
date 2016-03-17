@@ -125,9 +125,10 @@ class Spider(object):
         self.end_flag = True
         sys.exit(0)
 
-    def scrawl_url(self):
-        self.time_thread = threading.Thread(target=self._time_thread)
-        self.time_thread.start()
+    def crawl_url(self):
+        time_thread = threading.Thread(target=self._time_thread)
+        time_thread.setDaemon(True)
+        time_thread.start()
 
         self.get_index()
         wait_times = 12
@@ -158,7 +159,9 @@ class Spider(object):
             if not self.is_url(url):
                 continue
 
-            threading.Thread(target=self.get_urls, args=(url,)).start()
+            crawl_thread = threading.Thread(target=self.get_urls, args=(url,))
+            crawl_thread.setDaemon(True)
+            crawl_thread.start()
             time.sleep(0.2)
         self.stop()
 
@@ -184,7 +187,7 @@ def test():
 #     spider = Spider("http://m7lrv.com", 3, "./m7lrv.txt")
     spider = Spider("http://www.aizhan.com/", 2, "./aizhan.txt", 60 * 30)
     try:
-        spider.scrawl_url()
+        spider.crawl_url()
     finally:
         spider.stop()
 
@@ -200,7 +203,7 @@ def main():
 
     spider = Spider(url, deep, save_path, total_time, time_out, start_from_index)
     try:
-        spider.scrawl_url()
+        spider.crawl_url()
     finally:
         spider.stop()
 
