@@ -61,23 +61,49 @@ class Spider(object):
         return url_info.scheme, url_info.netloc
 
     def is_url(self, url):
-        regex = re.compile(
-            r'^(?:http|ftp)s?://' # http:// or https://
-            r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|' #domain...
-            r'localhost|' # localhost...
-            r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})' # ...or ip
-            r'(?::\d+)?' # optional port
-            r'(?:/?|[/?]\S+)$', re.IGNORECASE)
-        return False if regex.match(url) is None else True
+        all_express = [
+                       (r'^(?:http|ftp)s?://' # http:// or https://
+                        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|' #domain...
+                        r'localhost|' # localhost...
+                        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})' # ...or ip
+                        r'(?::\d+)?' # optional port
+                        r'(?:/?|[/?]\S+)$'),
+
+                    ("^(http|https|ftp)\\://([a-zA-Z0-9\\.\\-]+(\\:[a-zA-"
+                      + "Z0-9\\.&%\\$\\-]+)*@)?((25[0-5]|2[0-4][0-9]|[0-1]{1}[0-9]{"
+                      + "2}|[1-9]{1}[0-9]{1}|[1-9])\\.(25[0-5]|2[0-4][0-9]|[0-1]{1}"
+                      + "[0-9]{2}|[1-9]{1}[0-9]{1}|[1-9]|0)\\.(25[0-5]|2[0-4][0-9]|"
+                      + "[0-1]{1}[0-9]{2}|[1-9]{1}[0-9]{1}|[1-9]|0)\\.(25[0-5]|2[0-"
+                      + "4][0-9]|[0-1]{1}[0-9]{2}|[1-9]{1}[0-9]{1}|[0-9])|([a-zA-Z0"
+                      + "-9\\-]+\\.)*[a-zA-Z0-9\\-]+\\.[a-zA-Z]{2,4})(\\:[0-9]+)?(/"
+                      + "[^/][a-zA-Z0-9\\.\\,\\?\\'\\\\/\\+&%\\$\\=~_\\-@]*)*$")
+        ]
+        for express in all_express:
+            regex = re.compile(express, re.IGNORECASE)
+            if regex.match(url) is None:
+                return False
+        print url, True
+        return True
 
     def _get_urls(self, url):
+        u'''
+        @note: 由于大量网页代码不规范，只能尽量解析提取页面里面url
+        '''
         try:
             urls = set()
-            content = self.sess.get(url, timeout=self.timeout).content
+            resp = self.sess.get(url, timeout=self.timeout)
+            if resp.status_code != 200:
+                if resp.status_code == 404:
+                    return False, []
+
+            content = resp.content
+
+            # 解析引号内可能存在的url
             url_regular = r'["\']((%s|/).*?)["\']' % self.scheme
             tmp_urls = re.findall(url_regular, content, re.MULTILINE)
             urls.update(set([item[0] for item in tmp_urls if item]))
 
+            # 解析特定标签属性内可能存在的url
             tmp_urls = re.findall(r'src.*?=.*?["\'](.*?)["\']', content, re.MULTILINE)
             urls.update(set([item for item in tmp_urls if item]))
 
@@ -85,6 +111,10 @@ class Spider(object):
             urls.update(set([item for item in tmp_urls if item]))
 
             tmp_urls = re.findall(r'url.*?=.*?["\'](.*?)["\']', content, re.MULTILINE)
+            urls.update(set([item for item in tmp_urls if item]))
+
+            # 解析js里面可能存在的url
+            tmp_urls = set(re.findall('http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', content, re.MULTILINE))
             urls.update(set([item for item in tmp_urls if item]))
 
             return True, urls
@@ -185,7 +215,7 @@ def parse_argv():
 
 def test():
 #     spider = Spider("http://m7lrv.com", 3, "./m7lrv.txt")
-    spider = Spider("http://www.aizhan.com/", 2, "./aizhan.txt", 60 * 30)
+    spider = Spider("http://www.aizhan.com/", 3, "./aizhan.txt", 60 * 3)
     try:
         spider.crawl_url()
     finally:
