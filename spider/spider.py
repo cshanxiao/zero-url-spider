@@ -4,19 +4,21 @@ u'''
 @author: Administrator
 @date: 2016年3月15日
 '''
+import os
 import re
-import requests
-import traceback
+import sys
 import threading
 import time
-
-import os
-import sys
+import traceback
 import urlparse
 
+import requests
+
+
 class Spider(object):
-    def __init__(self, url, deep, save_path, total_time=300, timeout=30):
-        self.scheme, self.base_url = self.split_url(url)
+    def __init__(self, url, deep, save_path, total_time=300, timeout=30, start_from_index=True):
+        self.origin_url = url
+        self.scheme, self.base_url = self.split_url(self.origin_url)
         self.start_url = "://".join([self.scheme, self.base_url])
         if self.scheme is None or self.base_url is None:
             raise RuntimeError("Url error! Not a valid url! url: %s"
@@ -29,6 +31,7 @@ class Spider(object):
 
         self.total_time = total_time
         self.timeout = timeout
+        self.start_from_index = start_from_index
 
         self.end_flag = False
 
@@ -75,10 +78,13 @@ class Spider(object):
             tmp_urls = re.findall(url_regular, content, re.MULTILINE)
             urls.update(set([item[0] for item in tmp_urls if item]))
 
-            tmp_urls = re.findall(r'src=["\'](.*?)["\']', content, re.MULTILINE)
+            tmp_urls = re.findall(r'src.*?=.*?["\'](.*?)["\']', content, re.MULTILINE)
             urls.update(set([item for item in tmp_urls if item]))
 
-            tmp_urls = re.findall(r'href=["\'](.*?)["\']', content, re.MULTILINE)
+            tmp_urls = re.findall(r'href.*?=.*?["\'](.*?)["\']', content, re.MULTILINE)
+            urls.update(set([item for item in tmp_urls if item]))
+
+            tmp_urls = re.findall(r'url.*?=.*?["\'](.*?)["\']', content, re.MULTILINE)
             urls.update(set([item for item in tmp_urls if item]))
 
             return True, urls
@@ -87,7 +93,10 @@ class Spider(object):
             return False, []
 
     def get_index(self):
-        state, urls = self._get_urls(self.start_url)
+        if self.start_from_index:
+            state, urls = self._get_urls(self.start_url)
+        else:
+            state, urls = self._get_urls(self.origin_url)
         if not state:
             raise RuntimeError("Start url can not reachable! start_url: %s"
                                % self.start_url)
@@ -161,6 +170,9 @@ def parse_argv():
     parser.add_option("--save_path", "--save_path", dest="save_path", default='./urls.txt')
     parser.add_option("--total_time", "--total_time", dest="total_time", default=300)
     parser.add_option("--time_out", "--time_out", dest="time_out", default=30)
+    parser.add_option("--start_from_index", "--start_from_index",
+                      dest="start_from_index", default=1)
+
     try:
         _options, _args = parser.parse_args()
     except:
@@ -184,8 +196,9 @@ def main():
     save_path = os.path.abspath(unicode(options.save_path, sys.stdin.encoding))
     total_time = int(options.total_time)
     time_out = int(options.deep)
+    start_from_index = int(options.start_from_index)
 
-    spider = Spider(url, deep, save_path, total_time, time_out)
+    spider = Spider(url, deep, save_path, total_time, time_out, start_from_index)
     try:
         spider.scrawl_url()
     finally:
