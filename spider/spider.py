@@ -82,7 +82,6 @@ class Spider(object):
             regex = re.compile(express, re.IGNORECASE)
             if regex.match(url) is None:
                 return False
-        print url, True
         return True
 
     def _get_urls(self, url):
@@ -95,6 +94,11 @@ class Spider(object):
             if resp.status_code != 200:
                 if resp.status_code == 404:
                     return False, []
+            if "text" not in resp.headers["content-type"]:
+                return False, []
+
+            if "css" in resp.headers["content-type"]:
+                return False, []
 
             content = resp.content
 
@@ -114,10 +118,19 @@ class Spider(object):
             urls.update(set([item for item in tmp_urls if item]))
 
             # 解析js里面可能存在的url
-            tmp_urls = set(re.findall('http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', content, re.MULTILINE))
-            urls.update(set([item for item in tmp_urls if item]))
+#             js_url_re = 'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
+#             tmp_urls = set(re.findall(js_url_re, content, re.MULTILINE))
+#             urls.update(set([item for item in tmp_urls if item]))
 
-            return True, urls
+            ignore_urls = set()
+            ignore_exts = ["0.001", "0.907", ".acp", ".aif", ".aiff", ".au", ".awf", ".bmp", ".c4t", ".cal", ".cdf", ".cel", ".cg4", ".cit", ".cmx", ".crl", ".csi", ".cut", ".dbm", ".der", ".dib", ".doc", ".drw", ".dwf", ".dwg", ".dxf", ".emf", ".eps", ".etd", ".fax", ".fif", ".frm", ".gbr", ".gif", ".gp4", ".hmr", ".hpl", ".hrf", ".ico", ".iff", ".igs", ".img", ".isp", ".java", ".jpe", ".jpeg", ".jpg", ".lar", ".lavs", ".lmsff", ".ltr", ".m2v", ".m4e", ".man", ".mdb", ".mfp", ".mhtml", ".mid", ".mil", ".mnd", ".mocha", ".mp1", ".mp2v", ".mp4", ".mpd", ".mpeg", ".mpga", ".mps", ".mpv", ".mpw", ".net", ".nws", ".out", ".p12", ".p7c", ".p7r", ".pc5", ".pcl", ".pdf", ".pdx", ".pgl", ".pko", ".plt", ".png", ".ppa", ".pps", ".ppt", ".prf", ".prt", ".ps", ".pwz", ".ra", ".ras", ".red", ".rjs", ".rlc", ".rm", ".rmi", ".rmm", ".rms", ".rmx", ".rp", ".rsml", ".rtf", ".rv", ".sat", ".sdw", ".slb", ".slk", ".smil", ".snd", ".spl", ".ssm", ".stl", ".sty", ".swf", ".tg4", ".tif", ".tiff", ".top", ".uin", ".vdx", ".vpg", ".vsd", ".vst", ".vsw", ".vtx", ".wav", ".wb1", ".wb3", ".wiz", ".wk4", ".wks", ".wma", ".wmf", ".wmv", ".wmz", ".wpd", ".wpl", ".wr1", ".wrk", ".ws2", ".xdp", ".xfd", ".xls", ".xwd", ".sis", ".x_t", ".apk", ".tif", ".301", ".906", ".a11", ".ai", ".aifc", ".anv", ".asf", ".asx", ".avi", ".bot", ".c90", ".cat", ".cdr", ".cer", ".cgm", ".class", ".cmp", ".cot", ".crt", ".css", ".dbf", ".dbx", ".dcx", ".dgn", ".dll", ".dot", ".dwf", ".dxb", ".edn", ".eml", ".epi", ".eps", ".exe", ".fdf", ".g4", ".", ".gl2", ".hgl", ".hpg", ".hqx", ".hta", ".icb", ".ico", ".ig4", ".iii", ".ins", ".IVF", ".jfif", ".jpe", ".jpg", ".js", ".la1", ".latex", ".lbm", ".ls", ".m1v", ".m3u", ".mac", ".mdb", ".mht", ".mi", ".midi", ".mns", ".movie", ".mp2", ".mp3", ".mpa", ".mpe", ".mpg", ".mpp", ".mpt", ".mpv2", ".mpx", ".mxp", ".nrf", ".p10", ".p7b", ".p7m", ".p7s", ".pci", ".pcx", ".pdf", ".pfx", ".pic", ".pl", ".pls", ".png", ".pot", ".ppm", ".ppt", ".pr", ".prn", ".ps", ".ptn", ".ram", ".rat", ".rec", ".rgb", ".rjt", ".rle", ".rmf", ".rmj", ".rmp", ".rmvb", ".rnx", ".rpm", ".rtf", ".sam", ".sdp", ".sit", ".sld", ".smi", ".smk", ".spc", ".sst", ".tdf", ".tga", ".tif", ".torrent", ".vda", ".vsd", ".vss", ".vst", ".vsx", ".wax", ".wb2", ".wbmp", ".wk3", ".wkq", ".wm", ".wmd", ".wmx", ".wp6", ".wpg", ".wq1", ".wri", ".ws", ".wvx", ".xfdf", ".xls", ".xlw", ".xpl", ".x_b", ".sisx", ".ipa", ".xap"]
+            for url in urls:
+                for ext in ignore_exts:
+                    tmp_url = url.lower()
+                    if tmp_url.endswith(ext):
+                        ignore_urls.add(url)
+                        break
+            return True, urls.difference(ignore_urls)
         except:
 #             traceback.print_exc()
             return False, []
@@ -128,7 +141,7 @@ class Spider(object):
         else:
             state, urls = self._get_urls(self.origin_url)
         if not state:
-            raise RuntimeError("Start url can not reachable! start_url: %s"
+            raise RuntimeError("Start url is not available! start_url: %s"
                                % self.start_url)
 
         self.uncrawled_urls.update(urls)
@@ -214,8 +227,23 @@ def parse_argv():
     return _options
 
 def test():
-#     spider = Spider("http://m7lrv.com", 3, "./m7lrv.txt")
-    spider = Spider("http://www.aizhan.com/", 3, "./aizhan.txt", 60 * 3)
+    u'''
+    1:访问url出现错误的时候代码报错，并且temp临时文件不会删除（url在NET里面是可以访问的，但是到了py里面就报错了）
+            案例网站：
+        http://fang.taobao.com
+        http://www.0791bao.cn
+        http://www.jlgjqz.com
+
+    2：最好开启一个debug参数，用来记录错误信息，这样出现问题你也能快速的摘到问题代码位置（看你自己愿意加不加了）
+
+    py 2016/3/30 16:57:31
+    3：个别网站采集出来的url不完整 案例网站：http://www.zhiyiwang.com
+    '''
+
+#     spider = Spider("http://m7lrv.com", 10, "./m7lrv.txt")
+    spider = Spider("www.ejuhotel.com", 3, "./aizhan.txt", 60 * 3)
+
+#     spider = Spider("http://tieba.baidu.com/f?kw=c%23&fr=ala0&tpl=5", 10, "./tieba.txt", 60 * 10)
     try:
         spider.crawl_url()
     finally:
