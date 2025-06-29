@@ -9,9 +9,11 @@ start_from_index: 是否从首页开始爬取，默认1，0：否 1：是
 
 ## 依赖库安装
 ### uv 使用示例
+```shell
 uv init
 uv add requests
 uv remove requests
 
 uv add --group develop pandas
 uv add --group production pandas
+```
